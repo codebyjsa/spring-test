@@ -1,16 +1,37 @@
 pipeline {
     agent any
-
     stages {
         stage('Checkout Code') {
             steps {
-                echo 'Starting checkout...'
+                echo 'Starting checkout of main repo...'
                 checkout scm
                 sh 'pwd'
                 sh 'ls -la'
             }
         }
-
+        stage('Checkout jm-common') {
+            steps {
+                echo 'Checking out jm-common repo...'
+                dir('jm-common') {
+                    git branch: 'main', url: 'https://github.com/punjabskillsbank/jm-common.git'
+                }
+                sh 'ls -la jm-common'
+            }
+        }
+        stage('Build Dependency - jm-common') {
+            steps {
+                echo 'Installing jm-common dependency...'
+                withEnv([
+                    "JAVA_HOME=${tool 'jdk-21'}",
+                    "MAVEN_HOME=${tool 'maven3'}",
+                    "PATH=${tool 'jdk-21'}/bin:${env.PATH}"
+                ]) {
+                    dir('jm-common') {
+                        sh "${MAVEN_HOME}/bin/mvn clean install -DskipTests"
+                    }
+                }
+            }
+        }
         stage('Set Environment') {
             steps {
                 withEnv([
@@ -18,8 +39,8 @@ pipeline {
                     "MAVEN_HOME=${tool 'maven3'}",
                     "PATH=${tool 'jdk-21'}/bin:${env.PATH}",
                     "GITHUB_TOKEN=${credentials('jenkins-cicd')}",
-                    "REPO_OWNER=Gur-Academy",
-                    "REPO_NAME=ga-admin"
+                    "REPO_OWNER=codebyjsa",
+                    "REPO_NAME=spring-test"
                 ]) {
                     echo "Environment variables set"
                     echo "JAVA_HOME: ${env.JAVA_HOME}"
@@ -27,10 +48,9 @@ pipeline {
                 }
             }
         }
-
         stage('Build') {
             steps {
-                echo 'Starting build...'
+                echo 'Starting main build...'
                 withEnv([
                     "JAVA_HOME=${tool 'jdk-21'}",
                     "MAVEN_HOME=${tool 'maven3'}",
@@ -41,7 +61,6 @@ pipeline {
                 }
             }
         }
-
         stage('Run Tests') {
             steps {
                 echo 'Starting tests...'
@@ -55,7 +74,6 @@ pipeline {
                 }
             }
         }
-
         stage('Package') {
             steps {
                 echo 'Starting package...'
@@ -69,7 +87,6 @@ pipeline {
                 }
             }
         }
-
         stage('Notify PR Status') {
             steps {
                 echo 'Starting PR notification...'
@@ -83,19 +100,17 @@ pipeline {
                             script: "git rev-parse HEAD",
                             returnStdout: true
                         ).trim()
-
                         def state = currentBuild.currentResult == 'SUCCESS' ? 'success' : 'failure'
                         def description = currentBuild.currentResult == 'SUCCESS' ? 'Build and Tests Passed' : 'Build or Tests Failed'
                         def context = 'Jenkins CI'
-
                         sh """
-                        curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" \\
+                        curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" \
                              -d '{
                                   "state": "${state}",
                                   "target_url": "${env.BUILD_URL}",
                                   "description": "${description}",
                                   "context": "${context}"
-                                  }' \\
+                                  }' \
                              https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/statuses/${commitSha}
                         """
                     }
@@ -103,7 +118,6 @@ pipeline {
             }
         }
     }
-
     post {
         always {
             echo 'Cleaning up workspace...'
