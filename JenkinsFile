@@ -13,7 +13,7 @@ pipeline {
             steps {
                 echo 'Checking out jm-common repo...'
                 dir('jm-common') {
-                    git branch: 'main', url: 'https://github.com/your-org-or-user/jm-common.git'
+                    git branch: 'main', url: 'https://github.com/punjabskillsbank/jm-common.git'
                 }
                 sh 'ls -la jm-common'
             }
