@@ -3,10 +3,19 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                echo 'Starting checkout...'
+                echo 'Starting checkout of main repo...'
                 checkout scm
                 sh 'pwd'
                 sh 'ls -la'
+            }
+        }
+        stage('Checkout jm-common') {
+            steps {
+                echo 'Checking out jm-common repo...'
+                dir('jm-common') {
+                    git branch: 'main', url: 'https://github.com/your-org-or-user/jm-common.git'
+                }
+                sh 'ls -la jm-common'
             }
         }
         stage('Build Dependency - jm-common') {
@@ -17,7 +26,6 @@ pipeline {
                     "MAVEN_HOME=${tool 'maven3'}",
                     "PATH=${tool 'jdk-21'}/bin:${env.PATH}"
                 ]) {
-                    // Assuming jm-common source is checked out in a subdirectory 'jm-common'
                     dir('jm-common') {
                         sh "${MAVEN_HOME}/bin/mvn clean install -DskipTests"
                     }
@@ -42,7 +50,7 @@ pipeline {
         }
         stage('Build') {
             steps {
-                echo 'Starting build...'
+                echo 'Starting main build...'
                 withEnv([
                     "JAVA_HOME=${tool 'jdk-21'}",
                     "MAVEN_HOME=${tool 'maven3'}",
@@ -53,7 +61,62 @@ pipeline {
                 }
             }
         }
-        // Remaining stages...
+        stage('Run Tests') {
+            steps {
+                echo 'Starting tests...'
+                withEnv([
+                    "JAVA_HOME=${tool 'jdk-21'}",
+                    "MAVEN_HOME=${tool 'maven3'}",
+                    "PATH=${tool 'jdk-21'}/bin:${env.PATH}"
+                ]) {
+                    sh "${MAVEN_HOME}/bin/mvn test"
+                    echo 'Tests completed'
+                }
+            }
+        }
+        stage('Package') {
+            steps {
+                echo 'Starting package...'
+                withEnv([
+                    "JAVA_HOME=${tool 'jdk-21'}",
+                    "MAVEN_HOME=${tool 'maven3'}",
+                    "PATH=${tool 'jdk-21'}/bin:${env.PATH}"
+                ]) {
+                    sh "${MAVEN_HOME}/bin/mvn package"
+                    echo 'Package completed'
+                }
+            }
+        }
+        stage('Notify PR Status') {
+            steps {
+                echo 'Starting PR notification...'
+                withEnv([
+                    "GITHUB_TOKEN=${credentials('jenkins-cicd')}",
+                    "REPO_OWNER=Gur-Academy",
+                    "REPO_NAME=ga-admin"
+                ]) {
+                    script {
+                        def commitSha = sh(
+                            script: "git rev-parse HEAD",
+                            returnStdout: true
+                        ).trim()
+                        def state = currentBuild.currentResult == 'SUCCESS' ? 'success' : 'failure'
+                        def description = currentBuild.currentResult == 'SUCCESS' ? 'Build and Tests Passed' : 'Build or Tests Failed'
+                        def context = 'Jenkins CI'
+                        sh """
+                        curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" \
+                             -d '{
+                                  "state": "${state}",
+                                  "target_url": "${env.BUILD_URL}",
+                                  "description": "${description}",
+                                  "context": "${context}"
+                                  }' \
+                             https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/statuses/${commitSha}
+                        """
+                    }
+                }
+            }
+        }
     }
     post {
         always {
