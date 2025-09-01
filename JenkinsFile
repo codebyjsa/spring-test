@@ -18,8 +18,8 @@ pipeline {
                     "MAVEN_HOME=${tool 'maven3'}",
                     "PATH=${tool 'jdk-21'}/bin:${env.PATH}",
                     "GITHUB_TOKEN=${credentials('jenkins-cicd')}",
-                    "REPO_OWNER=Gur-Academy",
-                    "REPO_NAME=ga-admin"
+                    "REPO_OWNER=codebyjsa",
+                    "REPO_NAME=spring-test"
                 ]) {
                     echo "Environment variables set"
                     echo "JAVA_HOME: ${env.JAVA_HOME}"
