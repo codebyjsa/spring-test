@@ -21,7 +21,7 @@ public class QuestionController {
 
     @GetMapping
     public ResponseEntity<List<QuestionDTO>> getAllQuestions() {
-        log.info("Fetching all questions");
+        log.info("Fetching all question");
         return ResponseEntity.ok(questionService.getAllQuestions());
     }
 
